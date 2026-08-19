@@ -5,10 +5,6 @@ from odoo.exceptions import AccessDenied
 
 class HalMobileApi(http.Controller):
 
-    # ---------------------------------------------------------
-    # PING
-    # ---------------------------------------------------------
-
     @http.route(
         '/hal/api/ping',
         type='json',
@@ -24,14 +20,10 @@ class HalMobileApi(http.Controller):
             'server': 'Odoo 18',
         }
 
-    # ---------------------------------------------------------
-    # LOGIN
-    # ---------------------------------------------------------
-
     @http.route(
         '/hal/api/login',
         type='json',
-        auth='none',
+        auth='public',
         methods=['POST'],
         csrf=False,
     )
@@ -43,16 +35,16 @@ class HalMobileApi(http.Controller):
                 'message': 'Username and password are required.',
             }
 
-        db = request.db
+        # Get the actual database currently serving this Odoo.sh request
+        db = request.env.cr.dbname
 
         if not db:
             return {
                 'success': False,
-                'message': 'Database not available.',
+                'message': 'Database not found.',
             }
 
         try:
-
             credential = {
                 'login': login,
                 'password': password,
@@ -64,7 +56,7 @@ class HalMobileApi(http.Controller):
                 credential,
             )
 
-            uid = auth_info.get('uid')
+            uid = auth_info.get('uid') if auth_info else False
 
             if not uid:
                 return {
@@ -76,7 +68,7 @@ class HalMobileApi(http.Controller):
 
             employee = request.env['hr.employee'].sudo().search(
                 [('user_id', '=', uid)],
-                limit=1
+                limit=1,
             )
 
             return {
@@ -94,15 +86,13 @@ class HalMobileApi(http.Controller):
             }
 
         except AccessDenied:
-
             return {
                 'success': False,
                 'message': 'Wrong username or password.',
             }
 
-        except Exception:
-
+        except Exception as e:
             return {
                 'success': False,
-                'message': 'Unable to login to Odoo.',
+                'message': 'Login error: %s' % str(e),
             }
