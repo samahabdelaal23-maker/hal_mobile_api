@@ -5,6 +5,11 @@ from odoo.exceptions import AccessDenied
 
 class HalMobileApi(http.Controller):
 
+    # =========================================================
+    # PING
+    # Used to test connectivity between Flutter and Odoo
+    # =========================================================
+
     @http.route(
         '/hal/api/ping',
         type='json',
@@ -20,37 +25,51 @@ class HalMobileApi(http.Controller):
             'server': 'Odoo 18',
         }
 
+    # =========================================================
+    # LOGIN
+    # Authenticate mobile application users against Odoo
+    # =========================================================
+
     @http.route(
         '/hal/api/login',
         type='json',
-        auth='public',
+        auth='none',
         methods=['POST'],
         csrf=False,
     )
-    def login(self, login=None, password=None, **kwargs):
+    def login(self, db=None, login=None, password=None, **kwargs):
 
+        # -----------------------------------------------------
+        # Validate database
+        # -----------------------------------------------------
+        if not db:
+            return {
+                'success': False,
+                'message': 'Database name is required.',
+            }
+
+        # -----------------------------------------------------
+        # Validate username/password
+        # -----------------------------------------------------
         if not login or not password:
             return {
                 'success': False,
                 'message': 'Username and password are required.',
             }
 
-        # Get the actual database currently serving this Odoo.sh request
-        db = request.env.cr.dbname
-
-        if not db:
-            return {
-                'success': False,
-                'message': 'Database not found.',
-            }
-
         try:
+            # -------------------------------------------------
+            # Prepare Odoo 18 authentication credentials
+            # -------------------------------------------------
             credential = {
-                'login': login,
+                'login': login.strip(),
                 'password': password,
                 'type': 'password',
             }
 
+            # -------------------------------------------------
+            # Authenticate against the specified Odoo database
+            # -------------------------------------------------
             auth_info = request.session.authenticate(
                 db,
                 credential,
@@ -58,30 +77,51 @@ class HalMobileApi(http.Controller):
 
             uid = auth_info.get('uid') if auth_info else False
 
+            # -------------------------------------------------
+            # Invalid credentials
+            # -------------------------------------------------
             if not uid:
                 return {
                     'success': False,
                     'message': 'Wrong username or password.',
                 }
 
+            # -------------------------------------------------
+            # Get authenticated Odoo user
+            # -------------------------------------------------
             user = request.env['res.users'].sudo().browse(uid)
 
+            if not user.exists():
+                return {
+                    'success': False,
+                    'message': 'User account was not found.',
+                }
+
+            # -------------------------------------------------
+            # Find linked employee if one exists
+            # -------------------------------------------------
             employee = request.env['hr.employee'].sudo().search(
-                [('user_id', '=', uid)],
+                [
+                    ('user_id', '=', uid),
+                ],
                 limit=1,
             )
 
+            # -------------------------------------------------
+            # Successful authentication
+            # -------------------------------------------------
             return {
                 'success': True,
                 'message': 'Login successful.',
                 'user': {
                     'id': user.id,
-                    'name': user.name,
-                    'login': user.login,
+                    'name': user.name or '',
+                    'login': user.login or '',
                     'email': user.email or '',
                     'company_id': user.company_id.id,
-                    'company_name': user.company_id.name,
+                    'company_name': user.company_id.name or '',
                     'employee_id': employee.id if employee else False,
+                    'employee_name': employee.name if employee else '',
                 },
             }
 
