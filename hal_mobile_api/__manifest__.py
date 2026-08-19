@@ -9,17 +9,15 @@
 HAL Mobile API
 ==============
 
-Provides secure API endpoints for the HAL Flutter mobile application.
+API backend for the HAL Flutter mobile application.
 
-The module uses existing Odoo models for:
-- Users
-- Employees
+Provides:
+- Mobile authentication
+- Employee access
 - Attendance
 - Leave
 - Expenses
 - Inventory
-
-No duplicate business tables are created.
     """,
 
     'author': 'HAL',
@@ -38,9 +36,7 @@ No duplicate business tables are created.
     'data': [],
 
     'installable': True,
-
     'application': False,
-
     'auto_install': False,
 
     'license': 'LGPL-3',
