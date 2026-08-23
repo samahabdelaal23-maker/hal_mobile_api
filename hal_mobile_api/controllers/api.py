@@ -6,7 +6,7 @@ class HalMobileApi(http.Controller):
 
     # =========================================================
     # PING
-    # Used to test connectivity between Flutter and Odoo
+    # Test connectivity between Flutter and Odoo
     # =========================================================
 
     @http.route(
@@ -27,6 +27,10 @@ class HalMobileApi(http.Controller):
     # =========================================================
     # LOGIN
     # Mobile employee login
+    #
+    # Current authentication:
+    # Username -> hr.employee.work_email
+    # Password -> hr.employee.pin
     # =========================================================
 
     @http.route(
@@ -41,6 +45,7 @@ class HalMobileApi(http.Controller):
         # -----------------------------------------------------
         # Validate credentials
         # -----------------------------------------------------
+
         if not login or not password:
             return {
                 'success': False,
@@ -51,12 +56,9 @@ class HalMobileApi(http.Controller):
             login_value = login.strip()
 
             # -------------------------------------------------
-            # Search employee
-            #
-            # CURRENT TEST:
-            # login     -> employee work email
-            # password  -> employee PIN code
+            # Find employee by Work Email
             # -------------------------------------------------
+
             employee = request.env['hr.employee'].sudo().search(
                 [
                     ('work_email', '=ilike', login_value),
@@ -65,8 +67,9 @@ class HalMobileApi(http.Controller):
             )
 
             # -------------------------------------------------
-            # Employee does not exist
+            # Employee not found
             # -------------------------------------------------
+
             if not employee:
                 return {
                     'success': False,
@@ -74,13 +77,15 @@ class HalMobileApi(http.Controller):
                 }
 
             # -------------------------------------------------
-            # Read employee PIN
+            # Get employee PIN
             # -------------------------------------------------
+
             employee_pin = employee.pin or ''
 
             # -------------------------------------------------
-            # Compare password with employee PIN
+            # Compare entered password with employee PIN
             # -------------------------------------------------
+
             if str(employee_pin) != str(password):
                 return {
                     'success': False,
@@ -88,13 +93,27 @@ class HalMobileApi(http.Controller):
                 }
 
             # -------------------------------------------------
-            # Successful employee login
+            # Get employee image
+            #
+            # image_128 is used because the mobile application
+            # only needs a small profile/avatar image.
             # -------------------------------------------------
+
+            employee_image = ''
+
+            if employee.image_128:
+                employee_image = employee.image_128.decode('utf-8')
+
+            # -------------------------------------------------
+            # Successful login
+            # -------------------------------------------------
+
             return {
                 'success': True,
                 'message': 'Login successful.',
                 'employee_id': employee.id,
                 'employee_name': employee.name or '',
+                'employee_image': employee_image,
             }
 
         except Exception as e:
