@@ -1,6 +1,5 @@
 from odoo import http
 from odoo.http import request
-from odoo.exceptions import AccessDenied
 
 
 class HalMobileApi(http.Controller):
@@ -27,29 +26,20 @@ class HalMobileApi(http.Controller):
 
     # =========================================================
     # LOGIN
-    # Authenticate mobile application users against Odoo
+    # Mobile employee login
     # =========================================================
 
     @http.route(
         '/hal/api/login',
         type='json',
-        auth='none',
+        auth='public',
         methods=['POST'],
         csrf=False,
     )
-    def login(self, db=None, login=None, password=None, **kwargs):
+    def login(self, login=None, password=None, **kwargs):
 
         # -----------------------------------------------------
-        # Validate database
-        # -----------------------------------------------------
-        if not db:
-            return {
-                'success': False,
-                'message': 'Database name is required.',
-            }
-
-        # -----------------------------------------------------
-        # Validate username/password
+        # Validate credentials
         # -----------------------------------------------------
         if not login or not password:
             return {
@@ -58,77 +48,53 @@ class HalMobileApi(http.Controller):
             }
 
         try:
-            # -------------------------------------------------
-            # Prepare Odoo 18 authentication credentials
-            # -------------------------------------------------
-            credential = {
-                'login': login.strip(),
-                'password': password,
-                'type': 'password',
-            }
+            login_value = login.strip()
 
             # -------------------------------------------------
-            # Authenticate against the specified Odoo database
+            # Search employee
+            #
+            # CURRENT TEST:
+            # login     -> employee work email
+            # password  -> employee PIN code
             # -------------------------------------------------
-            auth_info = request.session.authenticate(
-                db,
-                credential,
+            employee = request.env['hr.employee'].sudo().search(
+                [
+                    ('work_email', '=ilike', login_value),
+                ],
+                limit=1,
             )
 
-            uid = auth_info.get('uid') if auth_info else False
-
             # -------------------------------------------------
-            # Invalid credentials
+            # Employee does not exist
             # -------------------------------------------------
-            if not uid:
+            if not employee:
                 return {
                     'success': False,
                     'message': 'Wrong username or password.',
                 }
 
             # -------------------------------------------------
-            # Get authenticated Odoo user
+            # Read employee PIN
             # -------------------------------------------------
-            user = request.env['res.users'].sudo().browse(uid)
+            employee_pin = employee.pin or ''
 
-            if not user.exists():
+            # -------------------------------------------------
+            # Compare password with employee PIN
+            # -------------------------------------------------
+            if str(employee_pin) != str(password):
                 return {
                     'success': False,
-                    'message': 'User account was not found.',
+                    'message': 'Wrong username or password.',
                 }
 
             # -------------------------------------------------
-            # Find linked employee if one exists
-            # -------------------------------------------------
-            employee = request.env['hr.employee'].sudo().search(
-                [
-                    ('user_id', '=', uid),
-                ],
-                limit=1,
-            )
-
-            # -------------------------------------------------
-            # Successful authentication
+            # Successful employee login
             # -------------------------------------------------
             return {
                 'success': True,
                 'message': 'Login successful.',
-                'user': {
-                    'id': user.id,
-                    'name': user.name or '',
-                    'login': user.login or '',
-                    'email': user.email or '',
-                    'company_id': user.company_id.id,
-                    'company_name': user.company_id.name or '',
-                    'employee_id': employee.id if employee else False,
-                    'employee_name': employee.name if employee else '',
-                },
-            }
-
-        except AccessDenied:
-            return {
-                'success': False,
-                'message': 'Wrong username or password.',
+                'employee_id': employee.id,
+                'employee_name': employee.name or '',
             }
 
         except Exception as e:
