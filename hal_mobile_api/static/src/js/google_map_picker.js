@@ -9,16 +9,12 @@ import {
 
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-
-import {
-    standardFieldProps,
-} from "@web/views/fields/standard_field_props";
+import { standardFieldProps } from "@web/views/fields/standard_field_props";
 
 
 export class HalGoogleMapPicker extends Component {
 
-    static template =
-        "hal_mobile_api.HalGoogleMapPicker";
+    static template = "hal_mobile_api.HalGoogleMapPicker";
 
     static props = {
         ...standardFieldProps,
@@ -27,14 +23,11 @@ export class HalGoogleMapPicker extends Component {
     setup() {
         this.orm = useService("orm");
 
-        this.mapContainer =
-            useRef("mapContainer");
+        this.mapContainer = useRef("mapContainer");
 
         this.map = null;
         this.marker = null;
         this.radiusCircle = null;
-
-        this.googleMapsLoaded = false;
 
         onMounted(async () => {
             await this.loadGoogleMaps();
@@ -47,20 +40,17 @@ export class HalGoogleMapPicker extends Component {
 
             const latitude =
                 Number(
-                    nextProps.record.data
-                        .hal_latitude
+                    nextProps.record.data.hal_latitude
                 ) || 0;
 
             const longitude =
                 Number(
-                    nextProps.record.data
-                        .hal_longitude
+                    nextProps.record.data.hal_longitude
                 ) || 0;
 
             const radius =
                 Number(
-                    nextProps.record.data
-                        .hal_attendance_radius
+                    nextProps.record.data.hal_attendance_radius
                 ) || 40;
 
             if (
@@ -77,7 +67,7 @@ export class HalGoogleMapPicker extends Component {
 
             if (this.radiusCircle) {
                 this.radiusCircle.setRadius(
-                    radius,
+                    radius
                 );
             }
         });
@@ -109,28 +99,26 @@ export class HalGoogleMapPicker extends Component {
             return;
         }
 
-        // Google Maps already loaded by another widget/page.
+        // Google Maps already exists on the page.
         if (
             window.google &&
             window.google.maps
         ) {
-            this.googleMapsLoaded = true;
             this.initializeMap();
             return;
         }
 
-        // Prevent loading the Google script multiple times.
-        if (
-            window
-                .halGoogleMapsLoadingPromise
-        ) {
-            try {
-                await window
-                    .halGoogleMapsLoadingPromise;
+        // Avoid loading the Google Maps script more than once.
+        if (window.halGoogleMapsLoadingPromise) {
 
-                this.googleMapsLoaded = true;
+            try {
+                await window.halGoogleMapsLoadingPromise;
+
                 this.initializeMap();
+
             } catch (error) {
+                console.error(error);
+
                 this.showLoadError();
             }
 
@@ -149,41 +137,41 @@ export class HalGoogleMapPicker extends Component {
                     script.src =
                         "https://maps.googleapis.com/maps/api/js" +
                         "?key=" +
-                        encodeURIComponent(
-                            apiKey
-                        ) +
+                        encodeURIComponent(apiKey) +
                         "&v=weekly";
 
                     script.async = true;
                     script.defer = true;
 
-                    script.onload =
-                        () => resolve();
+                    script.onload = () => {
+                        resolve();
+                    };
 
-                    script.onerror =
-                        () => reject(
+                    script.onerror = () => {
+                        reject(
                             new Error(
                                 "Google Maps script failed to load."
                             )
                         );
+                    };
 
-                    document.head
-                        .appendChild(
-                            script
-                        );
+                    document.head.appendChild(
+                        script
+                    );
                 }
             );
 
         try {
-            await window
-                .halGoogleMapsLoadingPromise;
-
-            this.googleMapsLoaded = true;
+            await window.halGoogleMapsLoadingPromise;
 
             this.initializeMap();
 
         } catch (error) {
-            console.error(error);
+
+            console.error(
+                "Google Maps loading error:",
+                error
+            );
 
             this.showLoadError();
         }
@@ -206,12 +194,12 @@ export class HalGoogleMapPicker extends Component {
         const record =
             this.props.record.data;
 
-        let latitude =
+        const latitude =
             Number(
                 record.hal_latitude
             ) || 0;
 
-        let longitude =
+        const longitude =
             Number(
                 record.hal_longitude
             ) || 0;
@@ -221,9 +209,14 @@ export class HalGoogleMapPicker extends Component {
                 record.hal_attendance_radius
             ) || 40;
 
-        // Default view = Muscat.
-        // This is ONLY the initial visual center.
-        // It is not saved until the admin selects a location.
+        // -----------------------------------------------------
+        // Default location
+        //
+        // Muscat is used only as the initial map view.
+        // Nothing is saved until the administrator clicks
+        // an actual location.
+        // -----------------------------------------------------
+
         let initialPosition;
 
         if (
@@ -245,11 +238,10 @@ export class HalGoogleMapPicker extends Component {
         }
 
         this.map =
-            new google.maps.Map(
+            new window.google.maps.Map(
                 this.mapContainer.el,
                 {
-                    center:
-                        initialPosition,
+                    center: initialPosition,
 
                     zoom:
                         (
@@ -264,11 +256,13 @@ export class HalGoogleMapPicker extends Component {
                     streetViewControl: false,
 
                     fullscreenControl: true,
+
+                    gestureHandling: "greedy",
                 }
             );
 
         // -----------------------------------------------------
-        // Existing saved location
+        // Existing stored company location
         // -----------------------------------------------------
 
         if (
@@ -288,16 +282,18 @@ export class HalGoogleMapPicker extends Component {
         }
 
         // -----------------------------------------------------
-        // Select location by clicking map
+        // Admin clicks location on Google Maps
         // -----------------------------------------------------
 
         this.map.addListener(
             "click",
             async (event) => {
 
-                if (
-                    this.props.readonly
-                ) {
+                if (this.props.readonly) {
+                    return;
+                }
+
+                if (!event.latLng) {
                     return;
                 }
 
@@ -312,10 +308,16 @@ export class HalGoogleMapPicker extends Component {
                     clickedLongitude
                 );
 
+                const currentRadius =
+                    Number(
+                        this.props.record.data
+                            .hal_attendance_radius
+                    ) || 40;
+
                 this.updateMapPosition(
                     clickedLatitude,
                     clickedLongitude,
-                    radius,
+                    currentRadius,
                     true,
                 );
             }
@@ -323,25 +325,21 @@ export class HalGoogleMapPicker extends Component {
     }
 
     // =========================================================
-    // SAVE LATITUDE / LONGITUDE TO ODOO RECORD
+    // SAVE GPS TO CURRENT ODOO RECORD
     // =========================================================
 
     async saveLocation(
         latitude,
         longitude
     ) {
-
         await this.props.record.update({
-            hal_latitude:
-                latitude,
-
-            hal_longitude:
-                longitude,
+            hal_latitude: latitude,
+            hal_longitude: longitude,
         });
     }
 
     // =========================================================
-    // UPDATE MAP
+    // UPDATE MAP POSITION
     // =========================================================
 
     updateMapPosition(
@@ -355,22 +353,32 @@ export class HalGoogleMapPicker extends Component {
             return;
         }
 
-        const position = {
-            lat:
-                Number(latitude),
+        const lat =
+            Number(latitude);
 
-            lng:
-                Number(longitude),
+        const lng =
+            Number(longitude);
+
+        if (
+            !Number.isFinite(lat) ||
+            !Number.isFinite(lng)
+        ) {
+            return;
+        }
+
+        const position = {
+            lat: lat,
+            lng: lng,
         };
 
         this.createOrMoveMarker(
-            position.lat,
-            position.lng
+            lat,
+            lng
         );
 
         this.createOrUpdateCircle(
-            position.lat,
-            position.lng,
+            lat,
+            lng,
             radius
         );
 
@@ -386,7 +394,7 @@ export class HalGoogleMapPicker extends Component {
     }
 
     // =========================================================
-    // MARKER
+    // GOOGLE MAPS MARKER
     // =========================================================
 
     createOrMoveMarker(
@@ -395,22 +403,17 @@ export class HalGoogleMapPicker extends Component {
     ) {
 
         const position = {
-            lat:
-                latitude,
-
-            lng:
-                longitude,
+            lat: Number(latitude),
+            lng: Number(longitude),
         };
 
         if (!this.marker) {
 
             this.marker =
-                new google.maps.Marker({
-                    position:
-                        position,
+                new window.google.maps.Marker({
+                    position: position,
 
-                    map:
-                        this.map,
+                    map: this.map,
 
                     title:
                         "HAL Work Location",
@@ -425,7 +428,7 @@ export class HalGoogleMapPicker extends Component {
     }
 
     // =========================================================
-    // ALLOWED RADIUS
+    // ATTENDANCE RADIUS CIRCLE
     // =========================================================
 
     createOrUpdateCircle(
@@ -435,25 +438,22 @@ export class HalGoogleMapPicker extends Component {
     ) {
 
         const center = {
-            lat:
-                latitude,
-
-            lng:
-                longitude,
+            lat: Number(latitude),
+            lng: Number(longitude),
         };
+
+        const radiusValue =
+            Number(radius) || 40;
 
         if (!this.radiusCircle) {
 
             this.radiusCircle =
-                new google.maps.Circle({
-                    map:
-                        this.map,
+                new window.google.maps.Circle({
+                    map: this.map,
 
-                    center:
-                        center,
+                    center: center,
 
-                    radius:
-                        Number(radius) || 40,
+                    radius: radiusValue,
 
                     strokeColor:
                         "#159BBE",
@@ -476,21 +476,18 @@ export class HalGoogleMapPicker extends Component {
 
         } else {
 
-            this.radiusCircle
-                .setCenter(
-                    center
-                );
+            this.radiusCircle.setCenter(
+                center
+            );
 
-            this.radiusCircle
-                .setRadius(
-                    Number(radius) ||
-                    40
-                );
+            this.radiusCircle.setRadius(
+                radiusValue
+            );
         }
     }
 
     // =========================================================
-    // MESSAGES
+    // CONFIGURATION MESSAGE
     // =========================================================
 
     showConfigurationMessage() {
@@ -501,20 +498,34 @@ export class HalGoogleMapPicker extends Component {
 
         this.mapContainer.el.innerHTML = `
             <div class="hal_map_message">
+
                 <span class="fa fa-map-marker"/>
+
                 <div>
+
                     <strong>
                         Google Maps API key is not configured.
                     </strong>
+
                     <br/>
-                    Add the system parameter:
+
+                    Add the following Odoo system parameter:
+
+                    <br/>
+
                     <code>
                         hal_mobile_api.google_maps_api_key
                     </code>
+
                 </div>
+
             </div>
         `;
     }
+
+    // =========================================================
+    // MAP LOAD ERROR
+    // =========================================================
 
     showLoadError() {
 
@@ -524,46 +535,25 @@ export class HalGoogleMapPicker extends Component {
 
         this.mapContainer.el.innerHTML = `
             <div class="hal_map_message hal_map_error">
+
                 <strong>
                     Google Maps could not be loaded.
                 </strong>
+
                 <br/>
-                Check the API key,
-                Google Cloud restrictions,
-                and billing configuration.
+
+                Please check the Google Maps API key,
+                API restrictions and Google Cloud billing.
+
             </div>
         `;
     }
 }
 
 
-HalGoogleMapPicker.template = `
-    <div class="hal_google_map_picker">
-
-        <div class="hal_map_header">
-
-            <div>
-                <strong>
-                    Google Maps Work Location
-                </strong>
-
-                <div class="text-muted">
-                    Click the exact company location on the map.
-                    The blue circle represents the allowed
-                    attendance radius.
-                </div>
-            </div>
-
-        </div>
-
-        <div
-            class="hal_google_map_container"
-            t-ref="mapContainer"
-        />
-
-    </div>
-`;
-
+// =============================================================
+// REGISTER FIELD WIDGET
+// =============================================================
 
 registry
     .category("fields")
