@@ -1,4 +1,5 @@
 from datetime import timezone
+from math import radians, sin, cos, sqrt, atan2
 
 from odoo import http, fields
 from odoo.http import request
@@ -9,29 +10,54 @@ from werkzeug.security import check_password_hash
 class HalMobileApi(http.Controller):
 
     # =========================================================
-    # DATETIME HELPER
+    # HELPERS
     # =========================================================
 
     def _datetime_to_utc_iso(self, value):
-        """
-        Odoo stores Datetime fields in UTC.
-
-        Odoo returns them internally as naive datetime objects,
-        so we explicitly mark the value as UTC before sending
-        it to Flutter.
-
-        Example:
-        2026-08-24 06:34:00
-        becomes:
-        2026-08-24T06:34:00+00:00
-        """
-
         if not value:
             return False
 
         return value.replace(
             tzinfo=timezone.utc
         ).isoformat()
+
+    def _calculate_distance_meters(
+        self,
+        lat1,
+        lon1,
+        lat2,
+        lon2,
+    ):
+        """
+        Calculate distance between two GPS coordinates
+        using the Haversine formula.
+
+        Returns distance in meters.
+        """
+
+        earth_radius = 6371000.0
+
+        lat1_rad = radians(lat1)
+        lon1_rad = radians(lon1)
+        lat2_rad = radians(lat2)
+        lon2_rad = radians(lon2)
+
+        delta_lat = lat2_rad - lat1_rad
+        delta_lon = lon2_rad - lon1_rad
+
+        a = (
+            sin(delta_lat / 2) ** 2
+            + cos(lat1_rad)
+            * cos(lat2_rad)
+            * sin(delta_lon / 2) ** 2
+        )
+
+        c = 2 * atan2(
+            sqrt(a),
+            sqrt(1 - a),
+        )
+
+        return earth_radius * c
 
     # =========================================================
     # PING
@@ -54,17 +80,6 @@ class HalMobileApi(http.Controller):
 
     # =========================================================
     # LOGIN
-    #
-    # Mobile App Login:
-    #
-    # Username:
-    # hr.employee.work_email
-    #
-    # Password:
-    # HAL Mobile App Password
-    #
-    # The password itself is NOT stored.
-    # Only mobile_app_password_hash is stored in Odoo.
     # =========================================================
 
     @http.route(
@@ -74,11 +89,12 @@ class HalMobileApi(http.Controller):
         methods=['POST'],
         csrf=False,
     )
-    def login(self, login=None, password=None, **kwargs):
-
-        # -----------------------------------------------------
-        # Validate input
-        # -----------------------------------------------------
+    def login(
+        self,
+        login=None,
+        password=None,
+        **kwargs,
+    ):
 
         if not login or not password:
             return {
@@ -89,14 +105,9 @@ class HalMobileApi(http.Controller):
         try:
             login_value = login.strip()
 
-            # -------------------------------------------------
-            # Search employee
-            #
-            # Only employees with Mobile App Access enabled
-            # are allowed to log in.
-            # -------------------------------------------------
-
-            employee = request.env['hr.employee'].sudo().search(
+            employee = request.env[
+                'hr.employee'
+            ].sudo().search(
                 [
                     ('active', '=', True),
                     ('mobile_app_access', '=', True),
@@ -105,36 +116,32 @@ class HalMobileApi(http.Controller):
                 limit=1,
             )
 
-            # -------------------------------------------------
-            # Employee not found
-            # -------------------------------------------------
-
             if not employee:
                 return {
                     'success': False,
                     'message': 'Wrong username or password.',
                 }
 
-            # -------------------------------------------------
-            # Ensure employee has a mobile password configured
-            # -------------------------------------------------
-
-            password_hash = employee.mobile_app_password_hash or ''
+            password_hash = (
+                employee.mobile_app_password_hash
+                or ''
+            )
 
             if not password_hash:
                 return {
                     'success': False,
-                    'message': 'Mobile application password is not configured.',
+                    'message': (
+                        'Mobile application password '
+                        'is not configured.'
+                    ),
                 }
 
-            # -------------------------------------------------
-            # Verify entered password against stored hash
-            # -------------------------------------------------
-
             try:
-                password_valid = check_password_hash(
-                    password_hash,
-                    password,
+                password_valid = (
+                    check_password_hash(
+                        password_hash,
+                        password,
+                    )
                 )
             except Exception:
                 password_valid = False
@@ -145,18 +152,14 @@ class HalMobileApi(http.Controller):
                     'message': 'Wrong username or password.',
                 }
 
-            # -------------------------------------------------
-            # Employee image
-            # -------------------------------------------------
-
             employee_image = ''
 
             if employee.image_128:
-                employee_image = employee.image_128.decode('utf-8')
-
-            # -------------------------------------------------
-            # Successful login
-            # -------------------------------------------------
+                employee_image = (
+                    employee.image_128.decode(
+                        'utf-8'
+                    )
+                )
 
             return {
                 'success': True,
@@ -183,11 +186,11 @@ class HalMobileApi(http.Controller):
         methods=['POST'],
         csrf=False,
     )
-    def attendance_status(self, employee_id=None, **kwargs):
-
-        # -----------------------------------------------------
-        # Validate Employee ID
-        # -----------------------------------------------------
+    def attendance_status(
+        self,
+        employee_id=None,
+        **kwargs,
+    ):
 
         if not employee_id:
             return {
@@ -196,7 +199,9 @@ class HalMobileApi(http.Controller):
             }
 
         try:
-            employee = request.env['hr.employee'].sudo().browse(
+            employee = request.env[
+                'hr.employee'
+            ].sudo().browse(
                 int(employee_id)
             )
 
@@ -206,41 +211,46 @@ class HalMobileApi(http.Controller):
                     'message': 'Employee not found.',
                 }
 
-            # -------------------------------------------------
-            # Look for currently open attendance
-            # -------------------------------------------------
-
-            attendance = request.env['hr.attendance'].sudo().search(
+            attendance = request.env[
+                'hr.attendance'
+            ].sudo().search(
                 [
-                    ('employee_id', '=', employee.id),
-                    ('check_out', '=', False),
+                    (
+                        'employee_id',
+                        '=',
+                        employee.id,
+                    ),
+                    (
+                        'check_out',
+                        '=',
+                        False,
+                    ),
                 ],
                 order='check_in desc',
                 limit=1,
             )
-
-            # -------------------------------------------------
-            # Employee is currently checked in
-            # -------------------------------------------------
 
             if attendance:
                 return {
                     'success': True,
                     'checked_in': True,
                     'attendance_id': attendance.id,
-                    'check_in': self._datetime_to_utc_iso(
-                        attendance.check_in
-                    ),
+                    'check_in':
+                        self._datetime_to_utc_iso(
+                            attendance.check_in
+                        ),
                     'check_out': False,
                 }
 
-            # -------------------------------------------------
-            # Get last completed attendance
-            # -------------------------------------------------
-
-            last_attendance = request.env['hr.attendance'].sudo().search(
+            last_attendance = request.env[
+                'hr.attendance'
+            ].sudo().search(
                 [
-                    ('employee_id', '=', employee.id),
+                    (
+                        'employee_id',
+                        '=',
+                        employee.id,
+                    ),
                 ],
                 order='check_in desc',
                 limit=1,
@@ -282,11 +292,13 @@ class HalMobileApi(http.Controller):
         except Exception:
             return {
                 'success': False,
-                'message': 'Could not load attendance status.',
+                'message': (
+                    'Could not load attendance status.'
+                ),
             }
 
     # =========================================================
-    # CHECK IN
+    # CHECK IN WITH GPS VALIDATION
     # =========================================================
 
     @http.route(
@@ -296,7 +308,13 @@ class HalMobileApi(http.Controller):
         methods=['POST'],
         csrf=False,
     )
-    def attendance_checkin(self, employee_id=None, **kwargs):
+    def attendance_checkin(
+        self,
+        employee_id=None,
+        latitude=None,
+        longitude=None,
+        **kwargs,
+    ):
 
         # -----------------------------------------------------
         # Validate Employee ID
@@ -308,8 +326,23 @@ class HalMobileApi(http.Controller):
                 'message': 'Employee ID is required.',
             }
 
+        # -----------------------------------------------------
+        # Validate GPS values
+        # -----------------------------------------------------
+
+        if latitude is None or longitude is None:
+            return {
+                'success': False,
+                'message': (
+                    'Your current location is required '
+                    'to check in.'
+                ),
+            }
+
         try:
-            employee = request.env['hr.employee'].sudo().browse(
+            employee = request.env[
+                'hr.employee'
+            ].sudo().browse(
                 int(employee_id)
             )
 
@@ -320,16 +353,166 @@ class HalMobileApi(http.Controller):
                 }
 
             # -------------------------------------------------
-            # Check if employee already has an open attendance
+            # Employee Work Location
+            # -------------------------------------------------
+
+            work_location = employee.work_location_id
+
+            if not work_location:
+                return {
+                    'success': False,
+                    'message': (
+                        'No work location is assigned '
+                        'to this employee.'
+                    ),
+                }
+
+            # -------------------------------------------------
+            # Office GPS configuration
+            # -------------------------------------------------
+
+            office_latitude = (
+                work_location.hal_latitude
+            )
+
+            office_longitude = (
+                work_location.hal_longitude
+            )
+
+            allowed_radius = (
+                work_location.hal_attendance_radius
+            )
+
+            # Treat 0 / 0 as not configured.
+            if (
+                not office_latitude
+                and not office_longitude
+            ):
+                return {
+                    'success': False,
+                    'message': (
+                        'GPS coordinates are not configured '
+                        'for your work location.'
+                    ),
+                }
+
+            if (
+                not allowed_radius
+                or allowed_radius <= 0
+            ):
+                return {
+                    'success': False,
+                    'message': (
+                        'Attendance radius is not configured '
+                        'for your work location.'
+                    ),
+                }
+
+            # -------------------------------------------------
+            # Convert mobile coordinates
+            # -------------------------------------------------
+
+            try:
+                employee_latitude = float(
+                    latitude
+                )
+
+                employee_longitude = float(
+                    longitude
+                )
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+                return {
+                    'success': False,
+                    'message': (
+                        'Invalid mobile GPS coordinates.'
+                    ),
+                }
+
+            # -------------------------------------------------
+            # Coordinate validation
+            # -------------------------------------------------
+
+            if not (
+                -90.0
+                <= employee_latitude
+                <= 90.0
+            ):
+                return {
+                    'success': False,
+                    'message': (
+                        'Invalid latitude received.'
+                    ),
+                }
+
+            if not (
+                -180.0
+                <= employee_longitude
+                <= 180.0
+            ):
+                return {
+                    'success': False,
+                    'message': (
+                        'Invalid longitude received.'
+                    ),
+                }
+
+            # -------------------------------------------------
+            # Calculate distance
+            # -------------------------------------------------
+
+            distance = (
+                self._calculate_distance_meters(
+                    employee_latitude,
+                    employee_longitude,
+                    office_latitude,
+                    office_longitude,
+                )
+            )
+
+            # -------------------------------------------------
+            # Employee outside allowed area
+            # -------------------------------------------------
+
+            if distance > allowed_radius:
+                return {
+                    'success': False,
+                    'message': (
+                        'You are outside the allowed '
+                        'check-in area.'
+                    ),
+                    'distance_meters': round(
+                        distance,
+                        1,
+                    ),
+                    'allowed_radius_meters':
+                        allowed_radius,
+                }
+
+            # -------------------------------------------------
+            # Already checked in?
             # -------------------------------------------------
 
             existing_attendance = (
-                request.env['hr.attendance']
+                request.env[
+                    'hr.attendance'
+                ]
                 .sudo()
                 .search(
                     [
-                        ('employee_id', '=', employee.id),
-                        ('check_out', '=', False),
+                        (
+                            'employee_id',
+                            '=',
+                            employee.id,
+                        ),
+                        (
+                            'check_out',
+                            '=',
+                            False,
+                        ),
                     ],
                     order='check_in desc',
                     limit=1,
@@ -339,17 +522,22 @@ class HalMobileApi(http.Controller):
             if existing_attendance:
                 return {
                     'success': False,
-                    'message': 'Employee is already checked in.',
+                    'message': (
+                        'Employee is already checked in.'
+                    ),
                 }
 
             # -------------------------------------------------
-            # Create attendance record
+            # Create attendance
             # -------------------------------------------------
 
-            attendance = request.env['hr.attendance'].sudo().create(
+            attendance = request.env[
+                'hr.attendance'
+            ].sudo().create(
                 {
                     'employee_id': employee.id,
-                    'check_in': fields.Datetime.now(),
+                    'check_in':
+                        fields.Datetime.now(),
                 }
             )
 
@@ -364,9 +552,24 @@ class HalMobileApi(http.Controller):
                 'employee_id': employee.id,
                 'employee_name': employee.name or '',
 
-                'check_in': self._datetime_to_utc_iso(
-                    attendance.check_in
+                'check_in':
+                    self._datetime_to_utc_iso(
+                        attendance.check_in
+                    ),
+
+                'distance_meters': round(
+                    distance,
+                    1,
                 ),
+
+                'allowed_radius_meters':
+                    allowed_radius,
+
+                'work_location_id':
+                    work_location.id,
+
+                'work_location_name':
+                    work_location.name or '',
             }
 
         except Exception:
@@ -386,11 +589,11 @@ class HalMobileApi(http.Controller):
         methods=['POST'],
         csrf=False,
     )
-    def attendance_checkout(self, employee_id=None, **kwargs):
-
-        # -----------------------------------------------------
-        # Validate Employee ID
-        # -----------------------------------------------------
+    def attendance_checkout(
+        self,
+        employee_id=None,
+        **kwargs,
+    ):
 
         if not employee_id:
             return {
@@ -399,7 +602,9 @@ class HalMobileApi(http.Controller):
             }
 
         try:
-            employee = request.env['hr.employee'].sudo().browse(
+            employee = request.env[
+                'hr.employee'
+            ].sudo().browse(
                 int(employee_id)
             )
 
@@ -409,42 +614,39 @@ class HalMobileApi(http.Controller):
                     'message': 'Employee not found.',
                 }
 
-            # -------------------------------------------------
-            # Find employee's current open attendance
-            # -------------------------------------------------
-
-            attendance = request.env['hr.attendance'].sudo().search(
+            attendance = request.env[
+                'hr.attendance'
+            ].sudo().search(
                 [
-                    ('employee_id', '=', employee.id),
-                    ('check_out', '=', False),
+                    (
+                        'employee_id',
+                        '=',
+                        employee.id,
+                    ),
+                    (
+                        'check_out',
+                        '=',
+                        False,
+                    ),
                 ],
                 order='check_in desc',
                 limit=1,
             )
 
-            # -------------------------------------------------
-            # No open attendance
-            # -------------------------------------------------
-
             if not attendance:
                 return {
                     'success': False,
-                    'message': 'No active check in was found.',
+                    'message': (
+                        'No active check in was found.'
+                    ),
                 }
-
-            # -------------------------------------------------
-            # Set Check Out time
-            # -------------------------------------------------
 
             attendance.sudo().write(
                 {
-                    'check_out': fields.Datetime.now(),
+                    'check_out':
+                        fields.Datetime.now(),
                 }
             )
-
-            # -------------------------------------------------
-            # Success
-            # -------------------------------------------------
 
             return {
                 'success': True,
@@ -453,13 +655,15 @@ class HalMobileApi(http.Controller):
                 'employee_id': employee.id,
                 'employee_name': employee.name or '',
 
-                'check_in': self._datetime_to_utc_iso(
-                    attendance.check_in
-                ),
+                'check_in':
+                    self._datetime_to_utc_iso(
+                        attendance.check_in
+                    ),
 
-                'check_out': self._datetime_to_utc_iso(
-                    attendance.check_out
-                ),
+                'check_out':
+                    self._datetime_to_utc_iso(
+                        attendance.check_out
+                    ),
             }
 
         except Exception:
