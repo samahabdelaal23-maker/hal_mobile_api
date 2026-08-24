@@ -39,6 +39,13 @@ Provides:
 
     ],
 
+    'assets': {
+        'web.assets_backend': [
+            'hal_mobile_api/static/src/js/google_map_picker.js',
+            'hal_mobile_api/static/src/css/google_map_picker.css',
+        ],
+    },
+
     'installable': True,
     'application': False,
     'auto_install': False,
