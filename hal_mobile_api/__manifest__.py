@@ -15,6 +15,8 @@ Provides:
 - Mobile authentication
 - Employee access
 - Attendance
+- GPS attendance validation
+- Google Maps work location configuration
 - Leave
 - Expenses
 - Inventory
@@ -26,6 +28,7 @@ Provides:
 
     'depends': [
         'base',
+        'web',
         'hr',
         'hr_attendance',
         'hr_holidays',
@@ -34,14 +37,20 @@ Provides:
     ],
 
     'data': [
-            'views/hr_employee_views.xml',
-            'views/hr_work_location_views.xml',
-
+        'views/hr_employee_views.xml',
+        'views/hr_work_location_views.xml',
     ],
 
     'assets': {
         'web.assets_backend': [
+
+            # Google Maps OWL template
+            'hal_mobile_api/static/src/xml/google_map_picker.xml',
+
+            # Google Maps field widget
             'hal_mobile_api/static/src/js/google_map_picker.js',
+
+            # Google Maps styling
             'hal_mobile_api/static/src/css/google_map_picker.css',
         ],
     },
