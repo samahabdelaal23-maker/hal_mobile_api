@@ -1,3 +1,5 @@
+from datetime import timezone
+
 from odoo import http, fields
 from odoo.http import request
 
@@ -5,6 +7,31 @@ from werkzeug.security import check_password_hash
 
 
 class HalMobileApi(http.Controller):
+
+    # =========================================================
+    # DATETIME HELPER
+    # =========================================================
+
+    def _datetime_to_utc_iso(self, value):
+        """
+        Odoo stores Datetime fields in UTC.
+
+        Odoo returns them internally as naive datetime objects,
+        so we explicitly mark the value as UTC before sending
+        it to Flutter.
+
+        Example:
+        2026-08-24 06:34:00
+        becomes:
+        2026-08-24T06:34:00+00:00
+        """
+
+        if not value:
+            return False
+
+        return value.replace(
+            tzinfo=timezone.utc
+        ).isoformat()
 
     # =========================================================
     # PING
@@ -201,10 +228,8 @@ class HalMobileApi(http.Controller):
                     'success': True,
                     'checked_in': True,
                     'attendance_id': attendance.id,
-                    'check_in': (
-                        attendance.check_in.isoformat()
-                        if attendance.check_in
-                        else False
+                    'check_in': self._datetime_to_utc_iso(
+                        attendance.check_in
                     ),
                     'check_out': False,
                 }
@@ -232,7 +257,9 @@ class HalMobileApi(http.Controller):
                 ),
 
                 'check_in': (
-                    last_attendance.check_in.isoformat()
+                    self._datetime_to_utc_iso(
+                        last_attendance.check_in
+                    )
                     if (
                         last_attendance
                         and last_attendance.check_in
@@ -241,7 +268,9 @@ class HalMobileApi(http.Controller):
                 ),
 
                 'check_out': (
-                    last_attendance.check_out.isoformat()
+                    self._datetime_to_utc_iso(
+                        last_attendance.check_out
+                    )
                     if (
                         last_attendance
                         and last_attendance.check_out
@@ -335,10 +364,8 @@ class HalMobileApi(http.Controller):
                 'employee_id': employee.id,
                 'employee_name': employee.name or '',
 
-                'check_in': (
-                    attendance.check_in.isoformat()
-                    if attendance.check_in
-                    else False
+                'check_in': self._datetime_to_utc_iso(
+                    attendance.check_in
                 ),
             }
 
@@ -426,16 +453,12 @@ class HalMobileApi(http.Controller):
                 'employee_id': employee.id,
                 'employee_name': employee.name or '',
 
-                'check_in': (
-                    attendance.check_in.isoformat()
-                    if attendance.check_in
-                    else False
+                'check_in': self._datetime_to_utc_iso(
+                    attendance.check_in
                 ),
 
-                'check_out': (
-                    attendance.check_out.isoformat()
-                    if attendance.check_out
-                    else False
+                'check_out': self._datetime_to_utc_iso(
+                    attendance.check_out
                 ),
             }
 
