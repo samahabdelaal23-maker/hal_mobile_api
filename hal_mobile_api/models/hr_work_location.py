@@ -1,23 +1,25 @@
-from odoo import fields, models
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
 
+    <record id="view_hr_work_location_form_hal_mobile" model="ir.ui.view">
+        <field name="name">hr.work.location.form.hal.mobile</field>
+        <field name="model">hr.work.location</field>
 
-class HrWorkLocation(models.Model):
-    _inherit = 'hr.work.location'
+        <field name="inherit_id" ref="hr.hr_work_location_view_form"/>
 
-    hal_latitude = fields.Float(
-        string='Latitude',
-        digits=(10, 7),
-        help='Latitude of this work location used for mobile attendance validation.',
-    )
+        <field name="arch" type="xml">
 
-    hal_longitude = fields.Float(
-        string='Longitude',
-        digits=(10, 7),
-        help='Longitude of this work location used for mobile attendance validation.',
-    )
+            <xpath expr="//field[@name='address_id']" position="after">
 
-    hal_attendance_radius = fields.Float(
-        string='Allowed Check-in Radius (m)',
-        default=40.0,
-        help='Maximum distance in meters allowed for mobile check-in/check-out.',
-    )
+                <field name="hal_latitude"/>
+
+                <field name="hal_longitude"/>
+
+                <field name="hal_attendance_radius"/>
+
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>
