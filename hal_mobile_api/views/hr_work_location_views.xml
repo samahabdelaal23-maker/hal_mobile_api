@@ -1,37 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
 
-    <record id="view_hr_work_location_form_hal_mobile"
-            model="ir.ui.view">
-
-        <field name="name">
-            hr.work.location.form.hal.mobile
-        </field>
-
-        <field name="model">
-            hr.work.location
-        </field>
-
-        <field name="inherit_id"
-               ref="hr.hr_work_location_form_view"/>
+    <record id="view_hr_work_location_form_hal_mobile" model="ir.ui.view">
+        <field name="name">hr.work.location.form.hal.mobile</field>
+        <field name="model">hr.work.location</field>
+        <field name="inherit_id" ref="hr.hr_work_location_form_view"/>
 
         <field name="arch" type="xml">
 
-            <xpath expr="//field[@name='address_id']"
-                   position="after">
+            <xpath expr="//field[@name='address_id']" position="after">
 
                 <separator string="HAL Mobile Attendance Location"/>
 
-                <!--
-                    This field carries our Google Maps picker widget.
-                    Clicking the map updates both latitude and longitude.
-                -->
+                <!-- Google Maps Picker -->
                 <field name="hal_latitude"
                        widget="hal_google_map_picker"
                        nolabel="1"/>
 
+                <!-- Stored GPS Values -->
                 <group col="3">
-
                     <field name="hal_latitude"
                            string="Latitude"/>
 
@@ -40,7 +27,6 @@
 
                     <field name="hal_attendance_radius"
                            string="Allowed Radius (m)"/>
-
                 </group>
 
             </xpath>
