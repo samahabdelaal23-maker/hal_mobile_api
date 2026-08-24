@@ -5,21 +5,19 @@
         <field name="name">hr.work.location.form.hal.mobile</field>
         <field name="model">hr.work.location</field>
 
-        <field name="inherit_id" ref="hr.hr_work_location_view_form"/>
+        <field name="inherit_id" ref="hr.hr_work_location_form_view"/>
 
         <field name="arch" type="xml">
 
-            <xpath expr="//form/sheet" position="inside">
+            <xpath expr="//field[@name='address_id']" position="after">
 
-                <group string="HAL Mobile Attendance Location">
+                <separator string="HAL Mobile Attendance Location"/>
 
-                    <field name="hal_latitude"/>
+                <field name="hal_latitude"/>
 
-                    <field name="hal_longitude"/>
+                <field name="hal_longitude"/>
 
-                    <field name="hal_attendance_radius"/>
-
-                </group>
+                <field name="hal_attendance_radius"/>
 
             </xpath>
 
