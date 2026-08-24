@@ -35,6 +35,7 @@ Provides:
 
     'data': [
             'views/hr_employee_views.xml',
+            'views/hr_work_location_views.xml',
 
     ],
 
